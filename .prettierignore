@@ -1,0 +1,21 @@
+# build output
+/bazel-out
+/dist
+/out-tsc
+/tmp
+
+# compilation
+*.tsbuildinfo
+
+# dependencies
+node_modules
+pnpm-lock.yaml
+
+# logs
+*-debug.log*
+
+# miscellaneous
+/.angular/cache
+/coverage
+
+

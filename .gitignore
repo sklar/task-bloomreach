@@ -1,0 +1,56 @@
+# Ignored files
+# @see https://git-scm.com/docs/gitignore
+
+# ai
+.agents/skills
+.claude/*.local.json
+.claude/skills
+
+# build
+/bazel-out
+/dist
+/out-tsc
+/tmp
+
+# compilation
+*.tsbuildinfo
+
+# dependencies
+node_modules
+
+# environment variables
+.dev.vars
+.env
+
+# IDEs and editors
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/mcp.json
+!.vscode/settings.json
+!.vscode/tasks.json
+.c9/
+.classpath
+.history/*
+.idea/
+.project
+.settings/
+.vscode/*
+*.launch
+*.sublime-workspace
+
+# logs
+*-debug.log*
+
+# miscellaneous
+__screenshots__/
+.sass-cache/
+/.angular/cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+/typings
+testem.log
+
+# OS
+.DS_Store
+Thumbs.db
