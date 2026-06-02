@@ -1,11 +1,10 @@
 /*
- * Footer styling (slice 06): a summary line on the start edge with Cancel/Apply
- * on the end edge, separated from the body by a top divider. The design's Apply
- * is a yellow button with dark text; Cancel is a quiet text button.
+ * Footer styling: a summary line on the start edge with Cancel/Apply on the end
+ * edge, separated from the body by a top divider. The design's Apply is a yellow
+ * button with dark text; Cancel is a quiet text button.
  *
- * Colours sit behind `--drp-*` semantic tokens with neutral fallbacks; the
- * canonical two-tier palette and full design colours land in the theming slice
- * (08), per JUSTIFICATION §10.
+ * Colours resolve through the semantic `--bloom-drp-*` tokens (defined on the picker
+ * host, inherited here; JUSTIFICATION §10) — the public theming surface.
  */
 @layer components {
   .drp-footer {
@@ -14,7 +13,7 @@
     justify-content: space-between;
     gap: 1rem;
     padding: 0.75rem 1.25rem;
-    border-block-start: 1px solid var(--drp-footer-divider, #e5e7eb);
+    border-block-start: 1px solid var(--bloom-drp-footer-divider);
   }
 
   .drp-footer__summary {
@@ -27,12 +26,12 @@
   .drp-footer__range {
     font-size: 0.875rem;
     font-weight: 500;
-    color: var(--drp-footer-range-color, #111827);
+    color: var(--bloom-drp-footer-range-color);
   }
 
   .drp-footer__meta {
     font-size: 0.75rem;
-    color: var(--drp-footer-meta-color, #6b7280);
+    color: var(--bloom-drp-footer-meta-color);
   }
 
   .drp-footer__actions {
@@ -53,22 +52,22 @@
   }
 
   .drp-footer__cancel {
-    color: var(--drp-footer-cancel-color, #374151);
+    color: var(--bloom-drp-footer-cancel-color);
     background: transparent;
   }
 
   .drp-footer__cancel:hover {
-    background: var(--drp-footer-cancel-hover-bg, #f3f4f6);
+    background: var(--bloom-drp-footer-cancel-hover-bg);
   }
 
-  /* Yellow Apply with dark text (design); contrast verified via AXE in slice 08. */
+  /* Yellow Apply with dark text (design). */
   .drp-footer__apply {
-    color: var(--drp-footer-apply-color, #1f2937);
-    background: var(--drp-footer-apply-bg, #facc15);
+    color: var(--bloom-drp-footer-apply-color);
+    background: var(--bloom-drp-footer-apply-bg);
   }
 
   .drp-footer__apply:hover:not(:disabled) {
-    background: var(--drp-footer-apply-hover-bg, color-mix(in srgb, #facc15 90%, #000));
+    background: var(--bloom-drp-footer-apply-hover-bg);
   }
 
   .drp-footer__apply:disabled {
@@ -78,7 +77,7 @@
 
   .drp-footer__cancel:focus-visible,
   .drp-footer__apply:focus-visible {
-    outline: 2px solid var(--drp-focus-ring, #2563eb);
+    outline: 2px solid var(--bloom-drp-focus-ring);
     outline-offset: 2px;
   }
 }

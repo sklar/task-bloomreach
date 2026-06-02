@@ -191,9 +191,9 @@ Vanilla CSS, design tokens as custom properties, `@layer` cascade layers — the
 
 **Two-tier tokens.**
 
-- **Primitive/global** on `:root` in the `tokens` layer — raw palette + scale (`--teal-500`, `--blue-100`, `--yellow-400`, spacing, radii, font sizes).
-- **Semantic/component** scoped to the component, referencing primitives (`--drp-range-endpoint-bg: var(--teal-500)`, etc.). **Semantic tokens are the public theming surface** — consumers re-theme by overriding them, never reaching into internals.
-- **Production note:** in a real shared library these would carry a vendor prefix (e.g. `--bloom-*`) to prevent collisions / leakage with host sites and third-party libraries. For this assignment the semantic tokens still use the short `--drp-*` prefix and the `--bloom-*` convention is called out as the production path. (Selectors _have_ adopted the `bloom-` vendor prefix — see §9 — so the token migration is the remaining half; deferred because every component's CSS references `--drp-*` and the rename is mechanical busywork the README documents instead.)
+- **Primitive/global** on `:root` in the `tokens` layer — raw palette + scale (`--bloom-cyan-500`, `--bloom-yellow-400`, `--bloom-ink-800`, font, …).
+- **Semantic/component** scoped to the component, referencing primitives (`--bloom-drp-range-endpoint-bg: var(--bloom-cyan-500)`, etc.). **Semantic tokens are the public theming surface** — consumers re-theme by overriding them, never reaching into internals.
+- **Vendor prefix.** Both tiers carry the `bloom-` vendor prefix to prevent collisions / leakage with host sites and third-party libraries: generic foundations are `--bloom-*`, picker-dedicated semantic tokens are `--bloom-drp-*` — mirroring the `bloom-` / `bloom-drp-` selector split (§9), so one vendor namespace spans selectors and the theming surface. (Earlier slices used the short `--drp-*` prefix and deferred the rename as mechanical busywork; completed in slice 08.)
 
 **Modern CSS used (on-brand for the role):** `color-mix()` for derived hover/active shades, `:has()` where it earns its keep (e.g. range-band edge rounding from neighbor state), and native nesting for component-scoped rules.
 

@@ -1,16 +1,67 @@
 /*
- * Skeleton styling (slice 03): a Trigger that reads like a text input and a
- * popover panel positioned with CSS Anchor Positioning — zero JS positioning
+ * Date range picker styling. A Trigger that reads like a text input and a popover
+ * panel positioned with CSS Anchor Positioning — zero JS positioning
  * (JUSTIFICATION §6). The per-instance `anchor-name` / `position-anchor` are
  * bound inline in the template; the static placement lives here.
  *
- * Colours are neutral structural placeholders behind `--drp-*` semantic tokens.
- * The two-tier token palette + design colours (teal endpoints, yellow Apply,
- * etc.) land in the theming slice (08); see JUSTIFICATION §10.
+ * Two tiers of tokens (JUSTIFICATION §10): primitives on `:root` (styles.css),
+ * and the semantic `--bloom-drp-*` tier below — the public theming surface. Every
+ * themeable colour resolves through a `--bloom-drp-*` token, so consumers re-theme by
+ * overriding them and never reach into the `.drp-*` internals. The tokens sit on
+ * the host, so the presentational children (month-grid, presets-list, footer)
+ * inherit them.
  */
+@layer tokens {
+  :host {
+    /* Trigger */
+    --bloom-drp-label-color: var(--bloom-ink-800);
+    --bloom-drp-trigger-color: var(--bloom-ink-800);
+    --bloom-drp-trigger-bg: var(--bloom-white);
+    --bloom-drp-trigger-border: var(--bloom-gray-200);
+
+    /* Panel */
+    --bloom-drp-panel-bg: var(--bloom-white);
+    --bloom-drp-panel-border: var(--bloom-gray-200);
+    --bloom-drp-focus-ring: var(--bloom-cyan-500);
+
+    /* Calendar nav + captions */
+    --bloom-drp-nav-color: var(--bloom-slate-500);
+    --bloom-drp-nav-hover-bg: var(--bloom-gray-50);
+    --bloom-drp-calendar-caption-color: var(--bloom-ink-800);
+    --bloom-drp-calendar-weekday-color: var(--bloom-slate-500);
+
+    /* Days + range visual states */
+    --bloom-drp-day-color: var(--bloom-ink-800);
+    --bloom-drp-day-hover-bg: var(--bloom-gray-50);
+    --bloom-drp-day-outside-color: var(--bloom-slate-300);
+    --bloom-drp-range-band-bg: var(--bloom-cyan-50);
+    --bloom-drp-range-endpoint-bg: var(--bloom-cyan-500);
+    --bloom-drp-range-endpoint-color: var(--bloom-white);
+    --bloom-drp-today-ring: var(--bloom-cyan-500);
+
+    /* Presets sidebar */
+    --bloom-drp-presets-divider: var(--bloom-gray-100);
+    --bloom-drp-preset-color: var(--bloom-slate-500);
+    --bloom-drp-preset-hover-bg: var(--bloom-gray-50);
+    --bloom-drp-preset-active-color: var(--bloom-ink-900);
+    --bloom-drp-preset-check-color: var(--bloom-cyan-500);
+
+    /* Footer */
+    --bloom-drp-footer-divider: var(--bloom-gray-100);
+    --bloom-drp-footer-range-color: var(--bloom-ink-800);
+    --bloom-drp-footer-meta-color: var(--bloom-slate-500);
+    --bloom-drp-footer-cancel-color: var(--bloom-ink-600);
+    --bloom-drp-footer-cancel-hover-bg: var(--bloom-gray-50);
+    --bloom-drp-footer-apply-bg: var(--bloom-yellow-400);
+    --bloom-drp-footer-apply-color: var(--bloom-ink-900);
+    --bloom-drp-footer-apply-hover-bg: color-mix(in srgb, var(--bloom-yellow-400) 88%, #000);
+  }
+}
+
 @layer components {
   :host {
     display: inline-block;
+    font-family: var(--bloom-font-sans);
   }
 
   /* Visually-hidden but exposed to assistive tech (the polite live region). */
@@ -31,25 +82,26 @@
     margin-block-end: 0.25rem;
     font-size: 0.875rem;
     font-weight: 500;
-    color: var(--drp-label-color, #374151);
+    color: var(--bloom-drp-label-color);
   }
 
   .drp__trigger {
     display: inline-flex;
     align-items: center;
-    min-width: 18rem;
+    min-inline-size: 120px;
+    inline-size: 100%;
     padding: 0.5rem 0.75rem;
     font: inherit;
     text-align: start;
-    color: var(--drp-trigger-color, #111827);
-    background: var(--drp-trigger-bg, #ffffff);
-    border: 1px solid var(--drp-trigger-border, #d1d5db);
+    color: var(--bloom-drp-trigger-color);
+    background: var(--bloom-drp-trigger-bg);
+    border: 1px solid var(--bloom-drp-trigger-border);
     border-radius: 0.375rem;
     cursor: pointer;
   }
 
   .drp__trigger:focus-visible {
-    outline: 2px solid var(--drp-focus-ring, #2563eb);
+    outline: 2px solid var(--bloom-drp-focus-ring);
     outline-offset: 2px;
   }
 
@@ -59,20 +111,20 @@
     margin: 0;
     margin-block-start: 0.5rem;
     padding: 0;
-    border: 1px solid var(--drp-panel-border, #d1d5db);
+    border: 1px solid var(--bloom-drp-panel-border);
     border-radius: 0.5rem;
-    background: var(--drp-panel-bg, #ffffff);
+    background: var(--bloom-drp-panel-bg);
     box-shadow: 0 10px 25px rgb(0 0 0 / 0.12);
   }
 
   /* Flip above the Trigger when there is no room below it. */
-  @position-try --drp-flip-up {
+  @position-try --bloom-drp-flip-up {
     position-area: top span-right;
     margin-block: 0 0.5rem;
   }
 
   .drp__panel {
-    position-try-fallbacks: --drp-flip-up;
+    position-try-fallbacks: --bloom-drp-flip-up;
   }
 
   /* Calendar on the left, presets sidebar on the right. */
@@ -100,7 +152,7 @@
     block-size: 2rem;
     font-size: 1.25rem;
     line-height: 1;
-    color: var(--drp-nav-color, #374151);
+    color: var(--bloom-drp-nav-color);
     background: transparent;
     border: 0;
     border-radius: 0.375rem;
@@ -108,11 +160,11 @@
   }
 
   .drp__nav:hover {
-    background: var(--drp-nav-hover-bg, #f3f4f6);
+    background: var(--bloom-drp-nav-hover-bg);
   }
 
   .drp__nav:focus-visible {
-    outline: 2px solid var(--drp-focus-ring, #2563eb);
+    outline: 2px solid var(--bloom-drp-focus-ring);
     outline-offset: 2px;
   }
 

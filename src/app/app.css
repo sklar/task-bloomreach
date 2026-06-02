@@ -1,0 +1,29 @@
+/* Demo shell styling — page chrome only; the picker brings its own styles. */
+:host {
+  background-color: var(--bloom-gray-50);
+  color: var(--bloom-ink-600);
+  display: grid;
+  font-family: var(--bloom-font-sans);
+  line-height: 1.5;
+  min-block-size: 100dvb;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.showcase {
+  margin: 0 auto;
+  max-inline-size: 60ch;
+  padding: calc(2rem + 5dvb) 2rem 6rem;
+
+  & > p {
+    text-wrap: pretty;
+  }
+}
+
+.showcase__pickers {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  margin-block-start: 3rem;
+}

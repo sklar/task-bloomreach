@@ -136,7 +136,7 @@ nextSelection(state, clicked):
 
 **Accessibility:** APG Date Picker Dialog pattern adapted to a non-modal popover. `role="dialog"`; each month `role="grid"` with row/columnheader/gridcell; gridcell-is-focusable with roving tabindex; `aria-current="date"`, `aria-selected`, full day labels; Presets as `radiogroup`; aria-labelled nav arrows; aria-hidden decorative icons; a visually-hidden polite live region for discrete events. Must pass AXE and WCAG AA (including contrast).
 
-**CSS:** vanilla CSS, `@layer reset, tokens, components, utilities`, two-tier tokens (primitive on `:root`; semantic `--drp-*` as the public theming surface). Modern CSS (`color-mix()`, `:has()`, native nesting). Emulated ViewEncapsulation. Light-only.
+**CSS:** vanilla CSS, `@layer reset, tokens, components, utilities`, two-tier tokens (primitive `--bloom-*` on `:root`; semantic `--bloom-drp-*` as the public theming surface). Modern CSS (`color-mix()`, `:has()`, native nesting). Emulated ViewEncapsulation. Light-only.
 
 **Browser targets:** Chrome/Edge ≥144, Firefox ≥147 (`.browserslistrc`). Safari out of scope (no native Temporal). Desktop ≥1280px only.
 

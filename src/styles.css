@@ -1,1 +1,68 @@
-/* You can add global styles to this file, and also import other style files */
+/*
+ * Global stylesheet. Establishes the cascade-layer order ONCE for the whole app
+ * (JUSTIFICATION §10) and defines the first, primitive tier of the design tokens.
+ *
+ *   @layer reset      — element normalisation
+ *   @layer tokens     — design tokens: primitives here (`:root`), semantic
+ *                       `--bloom-drp-*` on the component host (date-range-picker.css)
+ *   @layer components — component rules (picker + its presentational parts)
+ *   @layer utilities  — last word; reserved for one-off overrides
+ *
+ * Declaring the order up front means source order stops mattering — a component
+ * stylesheet that loads later can still slot its rules into `components` without
+ * out-cascading the reset.
+ */
+@layer reset, tokens, components, utilities;
+
+@layer reset {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+  }
+}
+
+@layer tokens {
+  /*
+   * Tier 1 — primitives: the raw palette and scales, no semantics. Colours are
+   * sampled straight from the design (locked, JUSTIFICATION §10). Components never
+   * reference these directly; the semantic `--bloom-drp-*` tier (date-range-picker.css)
+   * maps onto them, and that semantic tier is the public theming surface.
+   *
+   * Both tiers carry the `bloom-` vendor prefix to avoid colliding with the host
+   * site (JUSTIFICATION §10): generic foundations are `--bloom-*`, picker-dedicated
+   * semantic tokens are `--bloom-drp-*` — mirroring the `bloom-` / `bloom-drp-`
+   * selector split (§9).
+   */
+  :root {
+    /* Neutrals */
+    --bloom-white: #ffffff;
+    --bloom-gray-50: #f1f2f5;
+    --bloom-gray-100: #e1e8f5;
+    --bloom-gray-200: #d9dde5;
+    --bloom-slate-300: #bac6dd;
+    --bloom-slate-500: #72819a;
+    --bloom-ink-600: #384356;
+    --bloom-ink-800: #232b39;
+    --bloom-ink-900: #0e1823;
+
+    /* Brand — cyan endpoints + pale-cyan range band (design) */
+    --bloom-cyan-50: #eaf6fb;
+    --bloom-cyan-500: #33aed8;
+
+    /* Accent — yellow Apply (design) */
+    --bloom-yellow-400: #ffd500;
+
+    /* Scale */
+    --bloom-font-sans:
+      'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+}

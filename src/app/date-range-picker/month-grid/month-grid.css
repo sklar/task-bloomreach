@@ -1,16 +1,14 @@
 /*
- * MonthGrid styling (slice 04): the calendar's structural layout plus the
- * design's selection visual states — start/end as solid teal circles, the
- * in-between span as a light-blue band, today ringed.
+ * MonthGrid styling: the calendar's structural layout plus the design's
+ * selection visual states — start/end as solid cyan circles, the in-between span
+ * as a pale-cyan band, today ringed.
  *
- * Colours sit behind `--drp-*` semantic tokens with neutral fallbacks; the
- * canonical two-tier token palette (primitive teal/blue scale → semantic
- * surface) lands in the theming slice (08), per JUSTIFICATION §10. The fallbacks
- * here render the *states* faithfully without pre-empting that palette.
+ * Colours resolve through the semantic `--bloom-drp-*` tokens (defined on the picker
+ * host, inherited here; JUSTIFICATION §10) — the public theming surface.
  */
 @layer components {
   .drp-month {
-    min-width: 16rem;
+    min-inline-size: 16rem;
   }
 
   .drp-month__caption {
@@ -18,7 +16,7 @@
     font-size: 0.875rem;
     font-weight: 600;
     text-align: center;
-    color: var(--drp-calendar-caption-color, #111827);
+    color: var(--bloom-drp-calendar-caption-color);
   }
 
   /* The grid is a column of rows; each row lays its 7 cells across (APG roles). */
@@ -33,7 +31,7 @@
     font-size: 0.75rem;
     font-weight: 500;
     text-align: center;
-    color: var(--drp-calendar-weekday-color, #6b7280);
+    color: var(--bloom-drp-calendar-weekday-color);
   }
 
   .drp-day {
@@ -46,7 +44,7 @@
     padding: 0;
     font: inherit;
     font-size: 0.875rem;
-    color: var(--drp-day-color, #111827);
+    color: var(--bloom-drp-day-color);
     background: transparent;
     border: 0;
     border-radius: 50%;
@@ -54,40 +52,40 @@
   }
 
   .drp-day:hover {
-    background: var(--drp-day-hover-bg, #f3f4f6);
+    background: var(--bloom-drp-day-hover-bg);
   }
 
   .drp-day:focus-visible {
-    outline: 2px solid var(--drp-focus-ring, #2563eb);
+    outline: 2px solid var(--bloom-drp-focus-ring);
     outline-offset: -2px;
   }
 
   /* Days spilling in from the adjacent month read as muted context. */
   .drp-day--outside {
-    color: var(--drp-day-outside-color, #9ca3af);
+    color: var(--bloom-drp-day-outside-color);
   }
 
   /* The in-between span — a continuous light-blue band (square, so it abuts). */
   .drp-day--in-range {
-    background: var(--drp-range-band-bg, #dbeafe);
+    background: var(--bloom-drp-range-band-bg);
     border-radius: 0;
   }
 
   /* Range endpoints — solid teal circles with light text, painted over the band. */
   .drp-day--start,
   .drp-day--end {
-    color: var(--drp-range-endpoint-color, #ffffff);
-    background: var(--drp-range-endpoint-bg, #0d9488);
+    color: var(--bloom-drp-range-endpoint-color);
+    background: var(--bloom-drp-range-endpoint-bg);
     border-radius: 50%;
   }
 
   .drp-day--start:hover,
   .drp-day--end:hover {
-    background: var(--drp-range-endpoint-bg, #0d9488);
+    background: var(--bloom-drp-range-endpoint-bg);
   }
 
   /* Today: a ring so it stays visible whether or not it is selected. */
   .drp-day--today:not(.drp-day--start):not(.drp-day--end) {
-    box-shadow: inset 0 0 0 1px var(--drp-today-ring, #0d9488);
+    box-shadow: inset 0 0 0 2px var(--bloom-drp-today-ring);
   }
 }
