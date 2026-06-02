@@ -39,7 +39,7 @@ const CAPTION_OPTS: Intl.DateTimeFormatOptions = { month: 'long', year: 'numeric
  * (JUSTIFICATION §8 A) and layers on the full ARIA grid + accessible names.
  */
 @Component({
-  selector: 'app-month-grid',
+  selector: 'bloom-drp-month-grid',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="drp-month">

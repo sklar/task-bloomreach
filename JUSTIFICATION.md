@@ -64,6 +64,7 @@ Decisions and their rationale, recorded as they're made during planning. Source 
 - **Controlled + uncontrolled via `linkedSignal`.** `committed` mirrors the `value` input yet is locally writable on Apply, so the trigger updates even if the host doesn't echo `value` back. Works either way.
 - **`activePreset` is stored, not derived.** A manual selection flips to Custom range even when the dates happen to equal a preset — so it can't be a pure function of the range; it's set on preset click, reset to `'custom'` on manual edit.
 - **Open-time init in the toggle handler, not an `effect`.** Seeding the draft from `committed` on open is explicit and predictable. `effect` is reserved for true side-effects only (focus management on open, the `console.log` on Apply) — avoids zoneless/OnPush effect foot-guns.
+- **`seedDraft` has three cases, so every committed range round-trips on reopen.** A **dated** range restores its endpoints and focuses its start month (no named preset — the preset id isn't persisted, §3). **Lifetime** (committed but `start === null`) restores the open-ended draft _and_ re-activates the `lifetime` preset, so reopening shows "Lifetime", keeps Apply enabled, and re-checks the sidebar radio. **Empty** opens a clean draft on today's window. (Earlier the Lifetime case fell through to empty, silently dropping the selection on reopen — fixed in slice 06.)
 
 **Selection dance (camp B — always a valid range, see §11).** A click while `selectionPhase === 'complete'` (or on open) **starts fresh**: `draftStart = draftEnd = clicked`, phase → `'awaiting-end'` — already a valid 1-day range, so Apply is enabled. A click while `'awaiting-end'` **extends**: sets the far endpoint (auto-swapping if earlier than `draftStart`), phase → `'complete'`. Hover during `'awaiting-end'` drives `previewRange`. Any manual click also sets `activePreset = 'custom'`.
 
@@ -117,7 +118,9 @@ Decisions and their rationale, recorded as they're made during planning. Source 
 
 **Trigger is a `<button>`, not an `<input>`.** You can't meaningfully type a date _range_ into one field; the design's `mm/dd/yyyy` is just the button's empty-state text. The visible "Date picker label" associates via `aria-labelledby`. Consequence: there is **no `name` attribute** and **no hidden input**.
 
-**Form integration — CVA, not a hidden input.** The idiomatic Angular path is `ControlValueAccessor` (`<picker formControlName="…">` / `[(ngModel)]`), which is what Angular DS consumers (e.g. Angular Material) expect — not native `<form>`/`FormData` via a hidden field (rare in Angular; the modern native equivalent, Form-Associated Custom Elements, doesn't apply to a non-custom-element Angular component anyway). Implement CVA **if the time box allows**; otherwise leave a documented stub at the integration point. Core contract stays `value` input + `applied` output (§3).
+**Form integration — CVA, not a hidden input.** The idiomatic Angular path is `ControlValueAccessor` (`<picker formControlName="…">` / `[(ngModel)]`), which is what Angular DS consumers (e.g. Angular Material) expect — not native `<form>`/`FormData` via a hidden field (rare in Angular; the modern native equivalent, Form-Associated Custom Elements, doesn't apply to a non-custom-element Angular component anyway). Core contract stays `value` input + `applied` output (§3).
+
+**CVA implemented (slice 06).** `NG_VALUE_ACCESSOR` + `forwardRef`; `writeValue` seeds the same locally-writable `committed` signal the `value` input feeds, so `formControlName` / `[(ngModel)]`, controlled, and uncontrolled use are interchangeable. `onChange` fires on Apply. `onTouched` fires on close **only after a real interaction** (day/preset select or Apply) — opening and immediately dismissing leaves the control untouched, matching blur semantics. `setDisabledState` is intentionally omitted (the design has no disabled Trigger); flagged as a with-more-time item.
 
 **Rejected: hidden `<input name value>`.** Non-idiomatic for Angular and unused by typical Angular consumers; it was scope creep over the `value`/`applied` contract. `name`-derived ids were also fragile (sanitization to a `dashed-ident`, non-guaranteed uniqueness) — the counter is strictly safer.
 
@@ -160,8 +163,8 @@ date-range-picker/
                          in: month, range, hovered, focused, today.
                          out: daySelect, dayHover, focusedChange.
   presets-list/          PRESENTATIONAL radiogroup. in: activePreset. out: presetSelect.
-  footer/                PRESENTATIONAL. in: summaryText, dayCount, canApply.
-                         out: cancel, apply.
+  footer/                PRESENTATIONAL. in: summary, dayCount, canApply.
+                         out: apply, dismiss. Reads its own Intl timezone label.
   date-range.types.ts    DateRange, PresetId
   date-range.util.ts     pure (Temporal-only, no Angular): weekStart, buildMonthGrid,
                          formatCompact, formatVerbose, dayCount
@@ -174,6 +177,7 @@ date-range-picker/
 - **`MonthGrid` is the single reusable unit, rendered twice**; it owns cell-level flags so the root never deals in them.
 - **All date logic is pure util/`presets`**, Temporal-only — directly unit-testable as a clean interface (testing rule: behavior via the public interface).
 - **Root is the only stateful component**; CVA, live-region, open/close, apply/cancel, keyboard coordination all live there.
+- **Selectors carry the `bloom-` vendor prefix.** The shippable library component is `bloom-date-range-picker`; its internal presentational parts keep a `drp` sub-namespace — `bloom-drp-month-grid`, `bloom-drp-presets-list`, `bloom-drp-footer`. The Angular CLI default `app-` means "application-local component", which is wrong for a reusable DS component; a vendor prefix is the established convention (Material `mat-`, CDK `cdk-`). The demo shell stays `app-*`, so the prefix meaningfully distinguishes app-local from library. ESLint is set to `prefix: ['app', 'bloom']` to allow both. This mirrors the `--bloom-*` token convention (§10) — one vendor namespace across selectors and theming surface.
 
 ## 10. CSS token & layer architecture
 
@@ -189,7 +193,7 @@ Vanilla CSS, design tokens as custom properties, `@layer` cascade layers — the
 
 - **Primitive/global** on `:root` in the `tokens` layer — raw palette + scale (`--teal-500`, `--blue-100`, `--yellow-400`, spacing, radii, font sizes).
 - **Semantic/component** scoped to the component, referencing primitives (`--drp-range-endpoint-bg: var(--teal-500)`, etc.). **Semantic tokens are the public theming surface** — consumers re-theme by overriding them, never reaching into internals.
-- **Production note:** in a real shared library these would carry a vendor prefix (e.g. `--bloom-*`) to prevent collisions / leakage with host sites and third-party libraries. For this assignment we use a short `--drp-*` prefix and call out the `--bloom-*` convention as the production path.
+- **Production note:** in a real shared library these would carry a vendor prefix (e.g. `--bloom-*`) to prevent collisions / leakage with host sites and third-party libraries. For this assignment the semantic tokens still use the short `--drp-*` prefix and the `--bloom-*` convention is called out as the production path. (Selectors _have_ adopted the `bloom-` vendor prefix — see §9 — so the token migration is the remaining half; deferred because every component's CSS references `--drp-*` and the rename is mechanical busywork the README documents instead.)
 
 **Modern CSS used (on-brand for the role):** `color-mix()` for derived hover/active shades, `:has()` where it earns its keep (e.g. range-band edge rounding from neighbor state), and native nesting for component-scoped rules.
 

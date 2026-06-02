@@ -19,7 +19,9 @@ module.exports = defineConfig([
         'error',
         {
           type: 'attribute',
-          prefix: 'app',
+          // `app` for the demo shell; `bloom` is the design-system vendor prefix
+          // for the shippable library component (mirrors the `--bloom-*` token convention).
+          prefix: ['app', 'bloom'],
           style: 'camelCase',
         },
       ],
@@ -27,7 +29,7 @@ module.exports = defineConfig([
         'error',
         {
           type: 'element',
-          prefix: 'app',
+          prefix: ['app', 'bloom'],
           style: 'kebab-case',
         },
       ],

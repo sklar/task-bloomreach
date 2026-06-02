@@ -18,7 +18,7 @@ import { PRESETS } from '../presets';
  * navigation within the group lands in slice 07 (JUSTIFICATION §8 D).
  */
 @Component({
-  selector: 'app-presets-list',
+  selector: 'bloom-drp-presets-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div role="radiogroup" aria-label="Date range presets" class="drp-presets">

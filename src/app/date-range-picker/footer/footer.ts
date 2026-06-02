@@ -17,7 +17,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
  * (PRD user story 25).
  */
 @Component({
-  selector: 'app-drp-footer',
+  selector: 'bloom-drp-footer',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="drp-footer">

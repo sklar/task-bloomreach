@@ -65,7 +65,7 @@ const PLACEHOLDER = 'mm/dd/yyyy';
  * native-initiated close (synced via `(toggle)`) and our own handler never fight.
  */
 @Component({
-  selector: 'app-date-range-picker',
+  selector: 'bloom-date-range-picker',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MonthGrid, PresetsList, Footer],
   template: `
@@ -113,14 +113,14 @@ const PLACEHOLDER = 'mm/dd/yyyy';
           >
             ›
           </button>
-          <app-month-grid
+          <bloom-drp-month-grid
             [month]="viewMonth()"
             [range]="effectiveRange()"
             [today]="today"
             (daySelect)="onDaySelect($event)"
             (dayHover)="onDayHover($event)"
           />
-          <app-month-grid
+          <bloom-drp-month-grid
             [month]="viewMonthRight()"
             [range]="effectiveRange()"
             [today]="today"
@@ -128,9 +128,12 @@ const PLACEHOLDER = 'mm/dd/yyyy';
             (dayHover)="onDayHover($event)"
           />
         </div>
-        <app-presets-list [activePreset]="activePreset()" (presetSelect)="onPresetSelect($event)" />
+        <bloom-drp-presets-list
+          [activePreset]="activePreset()"
+          (presetSelect)="onPresetSelect($event)"
+        />
       </div>
-      <app-drp-footer
+      <bloom-drp-footer
         [summary]="summaryText()"
         [dayCount]="draftDayCount()"
         [canApply]="canApply()"
