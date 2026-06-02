@@ -33,7 +33,6 @@
     /* Days + range visual states */
     --bloom-drp-day-color: var(--bloom-ink-800);
     --bloom-drp-day-hover-bg: var(--bloom-gray-50);
-    --bloom-drp-day-outside-color: var(--bloom-slate-300);
     --bloom-drp-range-band-bg: var(--bloom-cyan-50);
     --bloom-drp-range-endpoint-bg: var(--bloom-cyan-500);
     --bloom-drp-range-endpoint-color: var(--bloom-white);

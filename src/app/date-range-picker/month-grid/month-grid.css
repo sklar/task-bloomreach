@@ -60,9 +60,12 @@
     outline-offset: -2px;
   }
 
-  /* Days spilling in from the adjacent month read as muted context. */
+  /* Days spilling in from the adjacent month are hidden to cut noise — the cell
+     keeps its grid column for alignment, but renders nothing and (via
+     visibility: hidden) drops out of the a11y tree, so it takes no hover/click
+     and can't be focused. */
   .drp-day--outside {
-    color: var(--bloom-drp-day-outside-color);
+    visibility: hidden;
   }
 
   /* The in-between span — a continuous light-blue band (square, so it abuts). */
