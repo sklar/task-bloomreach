@@ -1,0 +1,92 @@
+/*
+ * MonthGrid styling (slice 04): the calendar's structural layout plus the
+ * design's selection visual states — start/end as solid teal circles, the
+ * in-between span as a light-blue band, today ringed.
+ *
+ * Colours sit behind `--drp-*` semantic tokens with neutral fallbacks; the
+ * canonical two-tier token palette (primitive teal/blue scale → semantic
+ * surface) lands in the theming slice (08), per JUSTIFICATION §10. The fallbacks
+ * here render the *states* faithfully without pre-empting that palette.
+ */
+@layer components {
+  .drp-month {
+    min-width: 16rem;
+  }
+
+  .drp-month__caption {
+    margin-block-end: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-align: center;
+    color: var(--drp-calendar-caption-color, #111827);
+  }
+
+  .drp-month__weekdays,
+  .drp-month__grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+  }
+
+  .drp-month__weekday {
+    padding-block: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-align: center;
+    color: var(--drp-calendar-weekday-color, #6b7280);
+  }
+
+  .drp-day {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 2.25rem;
+    block-size: 2.25rem;
+    margin: 0;
+    padding: 0;
+    font: inherit;
+    font-size: 0.875rem;
+    color: var(--drp-day-color, #111827);
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .drp-day:hover {
+    background: var(--drp-day-hover-bg, #f3f4f6);
+  }
+
+  .drp-day:focus-visible {
+    outline: 2px solid var(--drp-focus-ring, #2563eb);
+    outline-offset: -2px;
+  }
+
+  /* Days spilling in from the adjacent month read as muted context. */
+  .drp-day--outside {
+    color: var(--drp-day-outside-color, #9ca3af);
+  }
+
+  /* The in-between span — a continuous light-blue band (square, so it abuts). */
+  .drp-day--in-range {
+    background: var(--drp-range-band-bg, #dbeafe);
+    border-radius: 0;
+  }
+
+  /* Range endpoints — solid teal circles with light text, painted over the band. */
+  .drp-day--start,
+  .drp-day--end {
+    color: var(--drp-range-endpoint-color, #ffffff);
+    background: var(--drp-range-endpoint-bg, #0d9488);
+    border-radius: 50%;
+  }
+
+  .drp-day--start:hover,
+  .drp-day--end:hover {
+    background: var(--drp-range-endpoint-bg, #0d9488);
+  }
+
+  /* Today: a ring so it stays visible whether or not it is selected. */
+  .drp-day--today:not(.drp-day--start):not(.drp-day--end) {
+    box-shadow: inset 0 0 0 1px var(--drp-today-ring, #0d9488);
+  }
+}

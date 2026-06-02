@@ -61,4 +61,47 @@
   .drp__panel {
     position-try-fallbacks: --drp-flip-up;
   }
+
+  /* Two calendars side by side, with the window-shift arrows in the top corners. */
+  .drp__calendar {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 1.5rem;
+    padding: 1rem 1.25rem;
+  }
+
+  .drp__nav {
+    position: absolute;
+    inset-block-start: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: 2rem;
+    block-size: 2rem;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--drp-nav-color, #374151);
+    background: transparent;
+    border: 0;
+    border-radius: 0.375rem;
+    cursor: pointer;
+  }
+
+  .drp__nav:hover {
+    background: var(--drp-nav-hover-bg, #f3f4f6);
+  }
+
+  .drp__nav:focus-visible {
+    outline: 2px solid var(--drp-focus-ring, #2563eb);
+    outline-offset: 2px;
+  }
+
+  .drp__nav--prev {
+    inset-inline-start: 1rem;
+  }
+
+  .drp__nav--next {
+    inset-inline-end: 1rem;
+  }
 }
