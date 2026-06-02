@@ -4,7 +4,9 @@ import {
   DestroyRef,
   ElementRef,
   InjectionToken,
+  Injector,
   Renderer2,
+  afterNextRender,
   computed,
   effect,
   forwardRef,
@@ -19,15 +21,17 @@ import { type ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import type { DateRange, PresetId } from './date-range.types';
 import {
   type SelectionPhase,
+  type SelectionState,
   dayCount,
   formatCompact,
   formatVerbose,
   nextSelection,
+  weekStart,
 } from './date-range.util';
 import { Footer } from './footer/footer';
 import { MonthGrid } from './month-grid/month-grid';
 import { PresetsList } from './presets-list/presets-list';
-import { presetRange } from './presets';
+import { PRESETS, presetRange } from './presets';
 
 /**
  * Today's calendar date, in the browser zone. A token (not a direct
@@ -96,6 +100,10 @@ const PLACEHOLDER = 'mm/dd/yyyy';
       (toggle)="onPopoverToggle($event)"
     >
       <div class="drp__body">
+        <!-- Keyboard nav is owned by the root (JUSTIFICATION §8/§9): the grids are
+             presentational, so Arrow/Home/End/PageUp/PageDown/Enter/Space are
+             handled on the host keydown (delegated off the focused gridcell) and
+             keyed off the focused-day signal. -->
         <div class="drp__calendar">
           <button
             type="button"
@@ -117,6 +125,7 @@ const PLACEHOLDER = 'mm/dd/yyyy';
             [month]="viewMonth()"
             [range]="effectiveRange()"
             [today]="today"
+            [focused]="gridFocusDate()"
             (daySelect)="onDaySelect($event)"
             (dayHover)="onDayHover($event)"
           />
@@ -124,6 +133,7 @@ const PLACEHOLDER = 'mm/dd/yyyy';
             [month]="viewMonthRight()"
             [range]="effectiveRange()"
             [today]="today"
+            [focused]="gridFocusDate()"
             (daySelect)="onDaySelect($event)"
             (dayHover)="onDayHover($event)"
           />
@@ -141,6 +151,11 @@ const PLACEHOLDER = 'mm/dd/yyyy';
         (dismiss)="cancel()"
       />
     </section>
+
+    <!-- Visually-hidden polite live region (JUSTIFICATION §8): announces only the
+         discrete events — selection started, range completed (with day count),
+         preset applied, month window changed — never hover, to avoid spam. -->
+    <div class="drp__sr-only" role="status" aria-live="polite">{{ liveMessage() }}</div>
   `,
   styleUrl: './date-range-picker.css',
   host: {
@@ -173,6 +188,8 @@ export class DateRangePicker implements ControlValueAccessor {
 
   private readonly hostRef = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly renderer = inject(Renderer2);
+  /** For scheduling post-render focus moves from outside the constructor. */
+  private readonly injector = inject(Injector);
 
   /** Today, in the browser zone — drives the default window and the today-marker. */
   protected readonly today = inject(TODAY);
@@ -213,6 +230,15 @@ export class DateRangePicker implements ControlValueAccessor {
   protected readonly viewMonth = signal<Temporal.PlainYearMonth>(this.today.toPlainYearMonth());
 
   /**
+   * The keyboard-focused day (roving tabindex + the Enter/Space select target).
+   * Set on open (selected day, else today), on day click, and on each arrow move.
+   */
+  protected readonly focusedDate = signal<Temporal.PlainDate>(this.today);
+
+  /** Visually-hidden polite live-region text; set only on discrete events (§8). */
+  protected readonly liveMessage = signal('');
+
+  /**
    * The active Preset (sidebar lands in slice 05). `null` = no named preset
    * chosen yet; a manual day click flips it to `'custom'` via `nextSelection`.
    * Stored, not derived (JUSTIFICATION §4) — exposed read-only so the slice's
@@ -223,6 +249,23 @@ export class DateRangePicker implements ControlValueAccessor {
 
   /** Right calendar's month. */
   protected readonly viewMonthRight = computed(() => this.viewMonth().add({ months: 1 }));
+
+  /**
+   * The day both grids receive as their roving-tabindex target. Normally the
+   * focused day, but if it scrolled out of the visible window (e.g. a mouse-driven
+   * nav-arrow shift), it falls back to the 1st of the left month so a tabbable
+   * cell always exists. Keyboard moves keep the focused day visible, so there it
+   * equals `focusedDate`.
+   */
+  protected readonly gridFocusDate = computed<Temporal.PlainDate>(() => {
+    const focused = this.focusedDate();
+    const left = this.viewMonth();
+    const month = focused.toPlainYearMonth();
+    const inWindow =
+      Temporal.PlainYearMonth.compare(month, left) >= 0 &&
+      Temporal.PlainYearMonth.compare(month, left.add({ months: 1 })) <= 0;
+    return inWindow ? focused : left.toPlainDate({ day: 1 });
+  });
 
   /** True between the first and second clicks — when the preview band is live. */
   protected readonly selecting = computed(() => this.selectionPhase() === 'awaiting-end');
@@ -340,6 +383,25 @@ export class DateRangePicker implements ControlValueAccessor {
     } catch {
       /* already open / unsupported */
     }
+    // Focus moves into the calendar on open — the selected day, else today (§8).
+    this.focusFocusedDay();
+  }
+
+  /**
+   * Move DOM focus to the focused day's gridcell after the next render (the
+   * target month may need to paint first — e.g. after a window shift). The
+   * roving-tabindex cell carries `tabindex="0"`, so it is the unique target
+   * across the two grids.
+   */
+  private focusFocusedDay(): void {
+    afterNextRender(
+      () => {
+        const cell =
+          this.panelRef().nativeElement.querySelector<HTMLElement>('.drp-day[tabindex="0"]');
+        cell?.focus();
+      },
+      { injector: this.injector },
+    );
   }
 
   /**
@@ -363,16 +425,19 @@ export class DateRangePicker implements ControlValueAccessor {
       this.draftEnd.set(committed.end);
       this.activePresetState.set(null);
       this.viewMonth.set(committed.start.toPlainYearMonth());
+      this.focusedDate.set(committed.start);
     } else if (committed) {
       this.draftStart.set(null);
       this.draftEnd.set(committed.end);
       this.activePresetState.set('lifetime');
       this.viewMonth.set(committed.end.toPlainYearMonth());
+      this.focusedDate.set(committed.end);
     } else {
       this.draftStart.set(null);
       this.draftEnd.set(null);
       this.activePresetState.set(null);
       this.viewMonth.set(this.today.toPlainYearMonth());
+      this.focusedDate.set(this.today);
     }
   }
 
@@ -392,6 +457,34 @@ export class DateRangePicker implements ControlValueAccessor {
     this.draftEnd.set(next.draftEnd);
     this.selectionPhase.set(next.phase);
     this.activePresetState.set(next.activePreset);
+    // Roving tabindex follows the selection (mouse or keyboard).
+    this.focusedDate.set(clicked);
+    this.announceSelection(next);
+  }
+
+  /**
+   * Announce the discrete selection event (§8): a fresh anchor reads as a started
+   * selection; a completed range reads with its inclusive day count.
+   */
+  private announceSelection(next: SelectionState): void {
+    if (next.draftStart === null) {
+      return;
+    }
+    if (next.phase === 'awaiting-end') {
+      this.liveMessage.set(
+        `Start date ${this.formatA11y(next.draftStart)} selected. Pick an end date.`,
+      );
+      return;
+    }
+    const count = dayCount(next.draftStart, next.draftEnd!);
+    this.liveMessage.set(
+      `Range selected: ${this.formatA11y(next.draftStart)} to ${this.formatA11y(next.draftEnd!)}, ${count} ${count === 1 ? 'day' : 'days'}.`,
+    );
+  }
+
+  /** A full date without a weekday, for live-region announcements (`10 February 2024`). */
+  private formatA11y(date: Temporal.PlainDate): string {
+    return date.toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   }
 
   /**
@@ -414,7 +507,23 @@ export class DateRangePicker implements ControlValueAccessor {
     this.selectionPhase.set('complete');
     this.hoveredDate.set(null);
     this.activePresetState.set(id);
-    this.viewMonth.set((range.start ?? range.end).toPlainYearMonth());
+    const anchor = range.start ?? range.end;
+    this.viewMonth.set(anchor.toPlainYearMonth());
+    this.focusedDate.set(anchor);
+    this.announcePreset(id, range);
+  }
+
+  /** Announce an applied preset (§8): the label, plus the range it set (no count for Lifetime). */
+  private announcePreset(id: PresetId, range: DateRange): void {
+    const label = PRESETS.find((preset) => preset.id === id)?.label ?? id;
+    if (range.start === null) {
+      this.liveMessage.set(`${label} preset applied.`);
+      return;
+    }
+    const count = dayCount(range.start, range.end);
+    this.liveMessage.set(
+      `${label} preset applied: ${formatVerbose(range)}, ${count} ${count === 1 ? 'day' : 'days'}.`,
+    );
   }
 
   /** Track the hovered day so the preview band can follow the pointer. */
@@ -425,6 +534,14 @@ export class DateRangePicker implements ControlValueAccessor {
   /** Shift the two-month window by `delta` months (`‹` = -1, `›` = +1). */
   protected shiftWindow(delta: number): void {
     this.viewMonth.update((month) => month.add({ months: delta }));
+    this.announceWindow();
+  }
+
+  /** Announce the visible two-month window (§8: "month window changed"). */
+  private announceWindow(): void {
+    const fmt = (ym: Temporal.PlainYearMonth) =>
+      ym.toPlainDate({ day: 1 }).toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+    this.liveMessage.set(`Showing ${fmt(this.viewMonth())} and ${fmt(this.viewMonthRight())}.`);
   }
 
   /**
@@ -493,6 +610,82 @@ export class DateRangePicker implements ControlValueAccessor {
       event.preventDefault();
       // Esc behaves like Cancel (PRD user story 38).
       this.cancel();
+      return;
+    }
+    // Delegated grid navigation: only when a day cell holds focus, so the nav
+    // arrows (‹ ›) and presets keep their own key handling.
+    const target = event.target as HTMLElement | null;
+    if (target?.classList.contains('drp-day')) {
+      this.onCalendarKeydown(event);
+    }
+  }
+
+  /**
+   * Grid keyboard model (JUSTIFICATION §8 D). ←→ day, ↑↓ week, Home/End week edges,
+   * PageUp/PageDown month, Enter/Space select. Moving off a visible edge shifts the
+   * two-month window (`moveFocus` → `ensureVisible`). Out of scope (left as a
+   * comment per the issue): Shift+PageUp/Down year jump and other exotic APG keys.
+   */
+  private onCalendarKeydown(event: KeyboardEvent): void {
+    const focused = this.focusedDate();
+    switch (event.key) {
+      case 'ArrowLeft':
+        this.moveFocus(focused.subtract({ days: 1 }));
+        break;
+      case 'ArrowRight':
+        this.moveFocus(focused.add({ days: 1 }));
+        break;
+      case 'ArrowUp':
+        this.moveFocus(focused.subtract({ days: 7 }));
+        break;
+      case 'ArrowDown':
+        this.moveFocus(focused.add({ days: 7 }));
+        break;
+      case 'Home':
+        this.moveFocus(weekStart(focused));
+        break;
+      case 'End':
+        this.moveFocus(weekStart(focused).add({ days: 6 }));
+        break;
+      case 'PageUp':
+        this.moveFocus(focused.subtract({ months: 1 }));
+        break;
+      case 'PageDown':
+        this.moveFocus(focused.add({ months: 1 }));
+        break;
+      case 'Enter':
+      case ' ':
+        this.onDaySelect(focused);
+        break;
+      default:
+        return; // Unhandled key — let it through (no preventDefault).
+    }
+    event.preventDefault();
+  }
+
+  /**
+   * Move keyboard focus to `next`, shifting the two-month window if `next` fell
+   * off a visible edge (announcing the shift), then move DOM focus once the target
+   * month has rendered.
+   */
+  private moveFocus(next: Temporal.PlainDate): void {
+    const before = this.viewMonth();
+    this.focusedDate.set(next);
+    this.ensureVisible(next);
+    if (!before.equals(this.viewMonth())) {
+      this.announceWindow();
+    }
+    this.focusFocusedDay();
+  }
+
+  /** Keep `date` within the two-month window, shifting by the minimum if it is outside. */
+  private ensureVisible(date: Temporal.PlainDate): void {
+    const month = date.toPlainYearMonth();
+    const left = this.viewMonth();
+    if (Temporal.PlainYearMonth.compare(month, left) < 0) {
+      this.viewMonth.set(month);
+    } else if (Temporal.PlainYearMonth.compare(month, left.add({ months: 1 })) > 0) {
+      this.viewMonth.set(month.subtract({ months: 1 }));
     }
   }
 

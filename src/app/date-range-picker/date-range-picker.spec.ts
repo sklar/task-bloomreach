@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import axe from 'axe-core';
 import { vi } from 'vitest';
 import { DateRangePicker, TODAY } from './date-range-picker';
 import type { DateRange } from './date-range.types';
@@ -741,6 +742,286 @@ describe('DateRangePicker — footer + apply/cancel (slice 06)', () => {
       pressEscape(panel(f));
       f.detectChanges();
       expect(touched).toBe(1);
+    });
+  });
+});
+
+/**
+ * Seam 2 (slice 07) — keyboard navigation + the a11y live region, driven through
+ * the root only. `today` is pinned via `TODAY` so the focused day, the visible
+ * window and the announcements are deterministic. The queryable surface is the
+ * APG grid: roving `tabindex` (one cell tabbable), `document.activeElement` after
+ * a key press, `aria-current` / `aria-selected` / `aria-label` on the gridcells,
+ * and the polite live region's text.
+ *
+ * Focus moves after a render (the target month may need to paint first), so the
+ * focus assertions await `whenStable()` — the documented way to flush Angular's
+ * post-render hooks in a fixture.
+ */
+describe('DateRangePicker — keyboard nav + a11y (slice 07)', () => {
+  // 2024-02-15 is a Thursday; weekStart = Sun 2024-02-11, weekEnd = Sat 2024-02-17.
+  const FIXED_TODAY = '2024-02-15';
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function setupCal(
+    opts: { today?: string; value?: DateRange | null } = {},
+  ): ComponentFixture<DateRangePicker> {
+    TestBed.configureTestingModule({
+      providers: [{ provide: TODAY, useValue: d(opts.today ?? FIXED_TODAY) }],
+    });
+    const fixture = TestBed.createComponent(DateRangePicker);
+    fixture.componentRef.setInput('label', 'Date range');
+    if ('value' in opts) {
+      fixture.componentRef.setInput('value', opts.value);
+    }
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  const openCal = async (f: ComponentFixture<DateRangePicker>) => {
+    trigger(f).click();
+    f.detectChanges();
+    await f.whenStable();
+  };
+  const dayCell = (f: ComponentFixture<DateRangePicker>, iso: string) =>
+    panel(f).querySelector(`.drp-day[data-date="${iso}"]`) as HTMLElement | null;
+  const tabbableDay = (f: ComponentFixture<DateRangePicker>) =>
+    panel(f).querySelector('.drp-day[tabindex="0"]') as HTMLElement | null;
+  const captions = (f: ComponentFixture<DateRangePicker>) =>
+    Array.from(panel(f).querySelectorAll('.drp-month__caption')).map((c) => c.textContent?.trim());
+  const liveRegion = (f: ComponentFixture<DateRangePicker>) =>
+    host(f).querySelector('[aria-live]') as HTMLElement;
+  const radios = (f: ComponentFixture<DateRangePicker>) =>
+    Array.from(panel(f).querySelectorAll('[role="radio"]')) as HTMLElement[];
+  const radioByLabel = (f: ComponentFixture<DateRangePicker>, label: string) =>
+    radios(f).find((r) => r.textContent?.includes(label))!;
+  const checkedRadio = (f: ComponentFixture<DateRangePicker>) =>
+    radios(f).find((r) => r.getAttribute('aria-checked') === 'true');
+
+  const clickDay = (f: ComponentFixture<DateRangePicker>, iso: string) => {
+    dayCell(f, iso)!.click();
+    f.detectChanges();
+  };
+  const clickPreset = (f: ComponentFixture<DateRangePicker>, label: string) => {
+    radioByLabel(f, label).click();
+    f.detectChanges();
+  };
+
+  // Arrow/Home/End/etc. are handled on the calendar region and keyed off the
+  // focused-day signal, so the event only needs to originate on *a* gridcell.
+  const pressKey = async (f: ComponentFixture<DateRangePicker>, key: string) => {
+    const active = document.activeElement as HTMLElement | null;
+    const source =
+      active && active.classList.contains('drp-day')
+        ? active
+        : (tabbableDay(f) ?? dayCell(f, FIXED_TODAY)!);
+    source.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    f.detectChanges();
+    await f.whenStable();
+  };
+
+  describe('focus on open', () => {
+    it('moves focus to today when nothing is committed', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      expect(document.activeElement).toBe(dayCell(f, FIXED_TODAY));
+    });
+
+    it('moves focus to the committed start day', async () => {
+      const f = setupCal({ value: { start: d('2024-02-05'), end: d('2024-02-08') } });
+      await openCal(f);
+      expect(document.activeElement).toBe(dayCell(f, '2024-02-05'));
+    });
+
+    it('exposes exactly one tabbable gridcell (roving tabindex)', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      expect(panel(f).querySelectorAll('.drp-day[tabindex="0"]')).toHaveLength(1);
+      expect(tabbableDay(f)).toBe(dayCell(f, FIXED_TODAY));
+    });
+  });
+
+  describe('arrow / Home / End / PageUp / PageDown movement', () => {
+    it('ArrowRight / ArrowLeft move one day', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      await pressKey(f, 'ArrowRight');
+      expect(document.activeElement).toBe(dayCell(f, '2024-02-16'));
+      await pressKey(f, 'ArrowLeft');
+      expect(document.activeElement).toBe(dayCell(f, '2024-02-15'));
+    });
+
+    it('ArrowDown / ArrowUp move one week', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      await pressKey(f, 'ArrowDown');
+      expect(document.activeElement).toBe(dayCell(f, '2024-02-22'));
+      await pressKey(f, 'ArrowUp');
+      expect(document.activeElement).toBe(dayCell(f, '2024-02-15'));
+    });
+
+    it('Home / End jump to the start / end of the week', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      await pressKey(f, 'Home');
+      expect(document.activeElement).toBe(dayCell(f, '2024-02-11'));
+      await pressKey(f, 'End');
+      expect(document.activeElement).toBe(dayCell(f, '2024-02-17'));
+    });
+
+    it('PageDown / PageUp move one month', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      await pressKey(f, 'PageDown');
+      expect(document.activeElement).toBe(dayCell(f, '2024-03-15'));
+    });
+
+    it('arrowing past the visible edge shifts the two-month window', async () => {
+      const f = setupCal({ value: null }); // window [February, March]
+      await openCal(f);
+      expect(captions(f)).toEqual(['February 2024', 'March 2024']);
+
+      // 15 → 8 → 1 → previous month (25 Jan), which is off the left edge.
+      await pressKey(f, 'ArrowUp');
+      await pressKey(f, 'ArrowUp');
+      await pressKey(f, 'ArrowUp');
+
+      expect(captions(f)).toEqual(['January 2024', 'February 2024']);
+      expect(document.activeElement).toBe(dayCell(f, '2024-01-25'));
+    });
+  });
+
+  describe('Enter / Space select the focused day', () => {
+    it('Enter selects the focused day as a 1-day range', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      await pressKey(f, 'ArrowRight'); // focus 16 Feb
+      await pressKey(f, 'Enter');
+
+      const cell = dayCell(f, '2024-02-16')!;
+      expect(cell.classList.contains('drp-day--start')).toBe(true);
+      expect(cell.classList.contains('drp-day--end')).toBe(true);
+    });
+
+    it('Space extends the range from a started selection', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      await pressKey(f, 'Enter'); // start 15 Feb
+      await pressKey(f, 'ArrowRight');
+      await pressKey(f, 'ArrowRight'); // focus 17 Feb
+      await pressKey(f, ' ');
+
+      expect(dayCell(f, '2024-02-15')!.classList.contains('drp-day--start')).toBe(true);
+      expect(dayCell(f, '2024-02-17')!.classList.contains('drp-day--end')).toBe(true);
+      expect(dayCell(f, '2024-02-16')!.classList.contains('drp-day--in-range')).toBe(true);
+    });
+  });
+
+  describe('presets are one tab stop navigated by arrow keys', () => {
+    it('has a single tabbable radio', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      expect(radios(f).filter((r) => r.getAttribute('tabindex') === '0')).toHaveLength(1);
+    });
+
+    it('ArrowDown moves the selection to the next preset', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+
+      // Start on the first preset (Lifetime) and step down to Today.
+      const group = panel(f).querySelector('[role="radiogroup"]') as HTMLElement;
+      radioByLabel(f, 'Lifetime').click();
+      f.detectChanges();
+      group.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      f.detectChanges();
+
+      expect(checkedRadio(f)).toBe(radioByLabel(f, 'Today'));
+    });
+  });
+
+  describe('live region announcements', () => {
+    it('announces when a selection starts', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      clickDay(f, '2024-02-10');
+      expect(liveRegion(f).textContent).toContain('10 February 2024');
+    });
+
+    it('announces a completed range with its inclusive day count', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      clickDay(f, '2024-02-10');
+      clickDay(f, '2024-02-20');
+      expect(liveRegion(f).textContent).toContain('11 days');
+    });
+
+    it('announces an applied preset', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      clickPreset(f, 'Last 7 days');
+      expect(liveRegion(f).textContent).toContain('Last 7 days');
+    });
+
+    it('announces a changed month window', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      (panel(f).querySelector('.drp__nav--next') as HTMLButtonElement).click();
+      f.detectChanges();
+      expect(liveRegion(f).textContent).toContain('April 2024');
+    });
+
+    it('does not announce hover', async () => {
+      const f = setupCal({ value: null });
+      await openCal(f);
+      clickDay(f, '2024-02-10');
+      const afterStart = liveRegion(f).textContent;
+
+      dayCell(f, '2024-02-20')!.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      f.detectChanges();
+
+      expect(liveRegion(f).textContent).toBe(afterStart);
+    });
+  });
+
+  describe('per-day accessible names + state', () => {
+    it('labels each day with its full date and range state', async () => {
+      const f = setupCal({ value: { start: d('2024-02-05'), end: d('2024-02-08') } });
+      await openCal(f);
+
+      expect(dayCell(f, '2024-02-05')!.getAttribute('aria-label')).toContain('5 February 2024');
+      expect(dayCell(f, '2024-02-05')!.getAttribute('aria-label')).toContain('range start');
+      expect(dayCell(f, '2024-02-08')!.getAttribute('aria-label')).toContain('range end');
+      expect(dayCell(f, '2024-02-06')!.getAttribute('aria-label')).toContain('in range');
+    });
+
+    it('marks today with aria-current and selected days with aria-selected', async () => {
+      const f = setupCal({ value: { start: d('2024-02-05'), end: d('2024-02-08') } });
+      await openCal(f);
+
+      expect(dayCell(f, FIXED_TODAY)!.getAttribute('aria-current')).toBe('date');
+      expect(dayCell(f, '2024-02-05')!.getAttribute('aria-selected')).toBe('true');
+      expect(dayCell(f, '2024-02-06')!.getAttribute('aria-selected')).toBe('true');
+      expect(dayCell(f, FIXED_TODAY)!.getAttribute('aria-selected')).toBe('false');
+    });
+  });
+
+  describe('AXE', () => {
+    it('has no violations for roles, names, or keyboard semantics', async () => {
+      const f = setupCal({ value: { start: d('2024-02-05'), end: d('2024-02-08') } });
+      await openCal(f);
+
+      const results = await axe.run(host(f), {
+        // Colours are locked to the design (issue 07 excludes color-contrast);
+        // `region` is a page-level landmark rule the showcase page owns (slice 08),
+        // out of scope for this component-scoped check.
+        rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
+      });
+
+      expect(results.violations).toEqual([]);
     });
   });
 });

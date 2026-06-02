@@ -21,8 +21,9 @@
     color: var(--drp-calendar-caption-color, #111827);
   }
 
+  /* The grid is a column of rows; each row lays its 7 cells across (APG roles). */
   .drp-month__weekdays,
-  .drp-month__grid {
+  .drp-month__week {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
   }
