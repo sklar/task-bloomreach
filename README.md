@@ -1,5 +1,8 @@
 # UI Developer Task
 
+> [!IMPORTANT]
+> **Browser support.** This project targets Chrome/Edge 144+ and Firefox 147+, relying on native [Temporal API](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Temporal) and [CSS Anchor Positioning](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Anchor_positioning) support. Safari is intentionally out of scope for this assignment. See [JUSTIFICATION.md §2](JUSTIFICATION.md#2-native-temporal-api-temporalplaindate--no-date-library) for rationale.
+
 This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.2.13.
 
 ## Development server

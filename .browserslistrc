@@ -1,2 +1,7 @@
-baseline widely available
+# Targets evergreen engines that ship native Temporal (§2) AND CSS Anchor Positioning (§6).
+# Firefox: Temporal landed in 139 but CSS Anchor Positioning available from 147.
+# Safari: excluded — no native Temporal yet.
+Chrome >= 144
+Edge >= 144
+Firefox >= 147
 not dead

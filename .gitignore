@@ -5,6 +5,7 @@
 .agents/skills
 .claude/*.local.json
 .claude/skills
+.scratch/
 
 # build
 /bazel-out
