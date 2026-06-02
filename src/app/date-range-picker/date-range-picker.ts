@@ -15,6 +15,8 @@ import {
 import type { DateRange, PresetId } from './date-range.types';
 import { type SelectionPhase, formatCompact, nextSelection } from './date-range.util';
 import { MonthGrid } from './month-grid/month-grid';
+import { PresetsList } from './presets-list/presets-list';
+import { presetRange } from './presets';
 
 /**
  * Today's calendar date, in the browser zone. A token (not a direct
@@ -54,7 +56,7 @@ const PLACEHOLDER = 'mm/dd/yyyy';
 @Component({
   selector: 'app-date-range-picker',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MonthGrid],
+  imports: [MonthGrid, PresetsList],
   template: `
     <span [id]="labelId" class="drp__label">{{ label() }}</span>
 
@@ -82,39 +84,42 @@ const PLACEHOLDER = 'mm/dd/yyyy';
       [style.position-anchor]="anchorName"
       (toggle)="onPopoverToggle($event)"
     >
-      <div class="drp__calendar">
-        <button
-          type="button"
-          class="drp__nav drp__nav--prev"
-          aria-label="Previous month"
-          (click)="shiftWindow(-1)"
-        >
-          ‹
-        </button>
-        <button
-          type="button"
-          class="drp__nav drp__nav--next"
-          aria-label="Next month"
-          (click)="shiftWindow(1)"
-        >
-          ›
-        </button>
-        <app-month-grid
-          [month]="viewMonth()"
-          [range]="effectiveRange()"
-          [today]="today"
-          (daySelect)="onDaySelect($event)"
-          (dayHover)="onDayHover($event)"
-        />
-        <app-month-grid
-          [month]="viewMonthRight()"
-          [range]="effectiveRange()"
-          [today]="today"
-          (daySelect)="onDaySelect($event)"
-          (dayHover)="onDayHover($event)"
-        />
+      <div class="drp__body">
+        <div class="drp__calendar">
+          <button
+            type="button"
+            class="drp__nav drp__nav--prev"
+            aria-label="Previous month"
+            (click)="shiftWindow(-1)"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            class="drp__nav drp__nav--next"
+            aria-label="Next month"
+            (click)="shiftWindow(1)"
+          >
+            ›
+          </button>
+          <app-month-grid
+            [month]="viewMonth()"
+            [range]="effectiveRange()"
+            [today]="today"
+            (daySelect)="onDaySelect($event)"
+            (dayHover)="onDayHover($event)"
+          />
+          <app-month-grid
+            [month]="viewMonthRight()"
+            [range]="effectiveRange()"
+            [today]="today"
+            (daySelect)="onDaySelect($event)"
+            (dayHover)="onDayHover($event)"
+          />
+        </div>
+        <app-presets-list [activePreset]="activePreset()" (presetSelect)="onPresetSelect($event)" />
       </div>
-      <!-- Presets sidebar + footer filled by later slices. -->
+      <!-- Footer filled by a later slice. -->
     </section>
   `,
   styleUrl: './date-range-picker.css',
@@ -281,6 +286,28 @@ export class DateRangePicker {
     this.draftEnd.set(next.draftEnd);
     this.selectionPhase.set(next.phase);
     this.activePresetState.set(next.activePreset);
+  }
+
+  /**
+   * Selecting a Preset fills the draft from the slice-02 mapping, stores it as
+   * the active preset, and moves the two-month window so the chosen Range is
+   * visible (its start month, or the end month for open-ended Lifetime).
+   *
+   * `presetRange` returns `null` only for `'custom'`, which has no mapping —
+   * clicking it (active or not) is a no-op, since Custom range activates solely
+   * via manual day selection (JUSTIFICATION §11).
+   */
+  protected onPresetSelect(id: PresetId): void {
+    const range = presetRange(id, this.today);
+    if (range === null) {
+      return;
+    }
+    this.draftStart.set(range.start);
+    this.draftEnd.set(range.end);
+    this.selectionPhase.set('complete');
+    this.hoveredDate.set(null);
+    this.activePresetState.set(id);
+    this.viewMonth.set((range.start ?? range.end).toPlainYearMonth());
   }
 
   /** Track the hovered day so the preview band can follow the pointer. */

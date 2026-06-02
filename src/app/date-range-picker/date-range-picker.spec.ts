@@ -312,3 +312,151 @@ describe('DateRangePicker (skeleton)', () => {
     });
   });
 });
+
+/**
+ * Seam 2 (slice 05) — the Presets sidebar, driven through the root only (the
+ * issue forbids unit-testing `PresetsList` in isolation). `today` is pinned via
+ * the `TODAY` token so each preset's Range and the resulting month window are
+ * deterministic. The radiogroup's accessible surface — `role`, `aria-checked`,
+ * roving `tabindex`, the visible checkmark — is the queryable contract.
+ */
+describe('DateRangePicker — presets sidebar (slice 05)', () => {
+  // 2024-02-15 is a Thursday; the days used below (1 Jan, 9/10/15/20 Feb) each
+  // address exactly one cell across the two rendered months.
+  const FIXED_TODAY = '2024-02-15';
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  function setupCal(
+    opts: { today?: string; value?: DateRange | null } = {},
+  ): ComponentFixture<DateRangePicker> {
+    TestBed.configureTestingModule({
+      providers: [{ provide: TODAY, useValue: d(opts.today ?? FIXED_TODAY) }],
+    });
+    const fixture = TestBed.createComponent(DateRangePicker);
+    fixture.componentRef.setInput('label', 'Date range');
+    if ('value' in opts) {
+      fixture.componentRef.setInput('value', opts.value);
+    }
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  const openCal = (f: ComponentFixture<DateRangePicker>) => {
+    trigger(f).click();
+    f.detectChanges();
+  };
+  const dayCell = (f: ComponentFixture<DateRangePicker>, iso: string) =>
+    panel(f).querySelector(`.drp-day[data-date="${iso}"]`) as HTMLButtonElement | null;
+  const clickDay = (f: ComponentFixture<DateRangePicker>, iso: string) => {
+    dayCell(f, iso)!.click();
+    f.detectChanges();
+  };
+  const captions = (f: ComponentFixture<DateRangePicker>) =>
+    Array.from(panel(f).querySelectorAll('.drp-month__caption')).map((c) => c.textContent?.trim());
+  const radiogroup = (f: ComponentFixture<DateRangePicker>) =>
+    panel(f).querySelector('[role="radiogroup"]') as HTMLElement | null;
+  const radios = (f: ComponentFixture<DateRangePicker>) =>
+    Array.from(panel(f).querySelectorAll('[role="radio"]')) as HTMLElement[];
+  const presetLabels = (f: ComponentFixture<DateRangePicker>) =>
+    Array.from(panel(f).querySelectorAll('.drp-preset__label')).map((s) => s.textContent?.trim());
+  const radioByLabel = (f: ComponentFixture<DateRangePicker>, label: string) =>
+    radios(f).find((r) => r.textContent?.includes(label))!;
+  const checkedRadios = (f: ComponentFixture<DateRangePicker>) =>
+    radios(f).filter((r) => r.getAttribute('aria-checked') === 'true');
+  const clickPreset = (f: ComponentFixture<DateRangePicker>, label: string) => {
+    radioByLabel(f, label).click();
+    f.detectChanges();
+  };
+
+  it('lists every preset in display order', () => {
+    const f = setupCal();
+    openCal(f);
+
+    expect(presetLabels(f)).toEqual([
+      'Lifetime',
+      'Today',
+      'Yesterday',
+      'This week',
+      'This month',
+      'This year',
+      'Last 7 days',
+      'Last 14 days',
+      'Last 30 days',
+      'Last 90 days',
+      'Custom range',
+    ]);
+  });
+
+  it('is a radiogroup with a single tab stop', () => {
+    const f = setupCal();
+    openCal(f);
+
+    expect(radiogroup(f)).not.toBeNull();
+    expect(radios(f).filter((r) => r.getAttribute('tabindex') === '0')).toHaveLength(1);
+  });
+
+  it('selecting a preset fills the calendar selection and moves the month window', () => {
+    const f = setupCal(); // today = 2024-02-15
+
+    openCal(f);
+    // Default window is today's month; "This year" starts in January, so the
+    // window must move to show the chosen range.
+    expect(captions(f)).toEqual(['February 2024', 'March 2024']);
+
+    clickPreset(f, 'This year'); // 2024-01-01 .. 2024-02-15
+
+    expect(captions(f)).toEqual(['January 2024', 'February 2024']);
+    expect(dayCell(f, '2024-01-01')!.classList.contains('drp-day--start')).toBe(true);
+    expect(dayCell(f, '2024-02-15')!.classList.contains('drp-day--end')).toBe(true);
+  });
+
+  it('marks the active preset checked with a visible checkmark; exactly one at a time', () => {
+    const f = setupCal();
+    openCal(f);
+
+    clickPreset(f, 'Last 7 days');
+
+    const active = radioByLabel(f, 'Last 7 days');
+    expect(active.getAttribute('aria-checked')).toBe('true');
+    expect(active.textContent).toContain('✓');
+    expect(checkedRadios(f)).toHaveLength(1);
+  });
+
+  it('selecting Lifetime activates it and highlights no endpoints (open-ended)', () => {
+    const f = setupCal();
+    openCal(f);
+
+    clickPreset(f, 'Lifetime');
+
+    expect(radioByLabel(f, 'Lifetime').getAttribute('aria-checked')).toBe('true');
+    expect(panel(f).querySelectorAll('.drp-day--start, .drp-day--end')).toHaveLength(0);
+  });
+
+  it('reflects a manual day selection as the Custom range preset', () => {
+    const f = setupCal();
+    openCal(f);
+
+    clickDay(f, '2024-02-10');
+
+    expect(radioByLabel(f, 'Custom range').getAttribute('aria-checked')).toBe('true');
+    expect(checkedRadios(f)).toHaveLength(1);
+  });
+
+  it('treats clicking the already-active Custom range entry as a no-op', () => {
+    const f = setupCal();
+    openCal(f);
+
+    clickDay(f, '2024-02-10');
+    clickDay(f, '2024-02-20'); // custom range 10..20, complete
+
+    clickPreset(f, 'Custom range');
+
+    expect(dayCell(f, '2024-02-10')!.classList.contains('drp-day--start')).toBe(true);
+    expect(dayCell(f, '2024-02-20')!.classList.contains('drp-day--end')).toBe(true);
+    expect(radioByLabel(f, 'Custom range').getAttribute('aria-checked')).toBe('true');
+  });
+});

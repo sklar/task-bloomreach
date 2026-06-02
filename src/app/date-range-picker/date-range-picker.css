@@ -62,6 +62,12 @@
     position-try-fallbacks: --drp-flip-up;
   }
 
+  /* Calendar on the left, presets sidebar on the right. */
+  .drp__body {
+    display: flex;
+    align-items: stretch;
+  }
+
   /* Two calendars side by side, with the window-shift arrows in the top corners. */
   .drp__calendar {
     position: relative;
