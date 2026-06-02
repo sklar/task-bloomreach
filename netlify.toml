@@ -1,0 +1,12 @@
+[build]
+  command = "pnpm build"
+  publish = "dist/bloomreach-ui-task/browser"
+
+[build.environment]
+  NODE_VERSION = "22.22.2"
+
+# SPA fallback: let Angular's client-side router handle deep links.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
