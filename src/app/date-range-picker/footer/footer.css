@@ -1,0 +1,84 @@
+/*
+ * Footer styling (slice 06): a summary line on the start edge with Cancel/Apply
+ * on the end edge, separated from the body by a top divider. The design's Apply
+ * is a yellow button with dark text; Cancel is a quiet text button.
+ *
+ * Colours sit behind `--drp-*` semantic tokens with neutral fallbacks; the
+ * canonical two-tier palette and full design colours land in the theming slice
+ * (08), per JUSTIFICATION §10.
+ */
+@layer components {
+  .drp-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 1.25rem;
+    border-block-start: 1px solid var(--drp-footer-divider, #e5e7eb);
+  }
+
+  .drp-footer__summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-inline-size: 0;
+  }
+
+  .drp-footer__range {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--drp-footer-range-color, #111827);
+  }
+
+  .drp-footer__meta {
+    font-size: 0.75rem;
+    color: var(--drp-footer-meta-color, #6b7280);
+  }
+
+  .drp-footer__actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .drp-footer__cancel,
+  .drp-footer__apply {
+    padding: 0.5rem 1rem;
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border: 0;
+    border-radius: 0.375rem;
+    cursor: pointer;
+  }
+
+  .drp-footer__cancel {
+    color: var(--drp-footer-cancel-color, #374151);
+    background: transparent;
+  }
+
+  .drp-footer__cancel:hover {
+    background: var(--drp-footer-cancel-hover-bg, #f3f4f6);
+  }
+
+  /* Yellow Apply with dark text (design); contrast verified via AXE in slice 08. */
+  .drp-footer__apply {
+    color: var(--drp-footer-apply-color, #1f2937);
+    background: var(--drp-footer-apply-bg, #facc15);
+  }
+
+  .drp-footer__apply:hover:not(:disabled) {
+    background: var(--drp-footer-apply-hover-bg, color-mix(in srgb, #facc15 90%, #000));
+  }
+
+  .drp-footer__apply:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .drp-footer__cancel:focus-visible,
+  .drp-footer__apply:focus-visible {
+    outline: 2px solid var(--drp-focus-ring, #2563eb);
+    outline-offset: 2px;
+  }
+}

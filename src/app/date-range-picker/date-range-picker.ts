@@ -6,14 +6,25 @@ import {
   InjectionToken,
   Renderer2,
   computed,
+  effect,
+  forwardRef,
   inject,
   input,
   linkedSignal,
+  output,
   signal,
   viewChild,
 } from '@angular/core';
+import { type ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import type { DateRange, PresetId } from './date-range.types';
-import { type SelectionPhase, formatCompact, nextSelection } from './date-range.util';
+import {
+  type SelectionPhase,
+  dayCount,
+  formatCompact,
+  formatVerbose,
+  nextSelection,
+} from './date-range.util';
+import { Footer } from './footer/footer';
 import { MonthGrid } from './month-grid/month-grid';
 import { PresetsList } from './presets-list/presets-list';
 import { presetRange } from './presets';
@@ -56,7 +67,7 @@ const PLACEHOLDER = 'mm/dd/yyyy';
 @Component({
   selector: 'app-date-range-picker',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MonthGrid, PresetsList],
+  imports: [MonthGrid, PresetsList, Footer],
   template: `
     <span [id]="labelId" class="drp__label">{{ label() }}</span>
 
@@ -119,7 +130,13 @@ const PLACEHOLDER = 'mm/dd/yyyy';
         </div>
         <app-presets-list [activePreset]="activePreset()" (presetSelect)="onPresetSelect($event)" />
       </div>
-      <!-- Footer filled by a later slice. -->
+      <app-drp-footer
+        [summary]="summaryText()"
+        [dayCount]="draftDayCount()"
+        [canApply]="canApply()"
+        (apply)="apply()"
+        (dismiss)="cancel()"
+      />
     </section>
   `,
   styleUrl: './date-range-picker.css',
@@ -127,12 +144,26 @@ const PLACEHOLDER = 'mm/dd/yyyy';
     class: 'drp',
     '(keydown)': 'onKeydown($event)',
   },
+  providers: [
+    {
+      // CVA is the intended Angular form-integration path (JUSTIFICATION §7):
+      // `<picker formControlName="…">` / `[(ngModel)]` drive the same `committed`
+      // signal the `value` input does, so the component works in a form, controlled,
+      // and uncontrolled. Native `<form>`/hidden-input participation stays out of scope.
+      provide: NG_VALUE_ACCESSOR,
+      useExisting: forwardRef(() => DateRangePicker),
+      multi: true,
+    },
+  ],
 })
-export class DateRangePicker {
+export class DateRangePicker implements ControlValueAccessor {
   /** The committed Range the Trigger displays; `null` renders the placeholder. */
   readonly value = input<DateRange | null>(null);
   /** Required visible label — every design variant has one (JUSTIFICATION §3). */
   readonly label = input.required<string>();
+
+  /** Emits the committed Range on Apply (`{ start, end }`); the sole output (JUSTIFICATION §3). */
+  readonly applied = output<DateRange>();
 
   private readonly triggerRef = viewChild.required<ElementRef<HTMLButtonElement>>('trigger');
   private readonly panelRef = viewChild.required<ElementRef<HTMLElement>>('panel');
@@ -216,6 +247,55 @@ export class DateRangePicker {
     return start !== null && end !== null ? { start, end } : null;
   });
 
+  // --- Footer / commit lifecycle (slice 06) ---------------------------------
+
+  /**
+   * The Range the footer summarises and Apply would commit. `null` when nothing
+   * is selected; `{ start: null, end }` for Lifetime (open-ended). The encoding
+   * is read straight off the draft: an empty draft leaves `draftEnd` null, while
+   * Lifetime seeds `draftStart = null` with a dated `draftEnd` (JUSTIFICATION §5).
+   */
+  protected readonly draftRange = computed<DateRange | null>(() => {
+    const end = this.draftEnd();
+    if (end === null) {
+      return null;
+    }
+    return { start: this.draftStart(), end };
+  });
+
+  /** Verbose footer summary of the draft (`Sunday, … – …`), or "Lifetime"; empty when none. */
+  protected readonly summaryText = computed(() => {
+    const range = this.draftRange();
+    return range ? formatVerbose(range) : '';
+  });
+
+  /** Inclusive day count of the draft; `null` for Lifetime or an empty draft (no count shown). */
+  protected readonly draftDayCount = computed<number | null>(() => {
+    const range = this.draftRange();
+    if (range === null || range.start === null) {
+      return null;
+    }
+    return dayCount(range.start, range.end);
+  });
+
+  /** Apply is enabled whenever a Range exists or Lifetime is active (JUSTIFICATION §11). */
+  protected readonly canApply = computed(() => this.draftRange() !== null);
+
+  /**
+   * The most recently applied Range, bumped on each Apply so the `console.log`
+   * side-effect can live in an `effect` rather than the click handler or computed
+   * state (issue 06; JUSTIFICATION §4).
+   */
+  private readonly appliedLog = signal<DateRange | null>(null);
+
+  /**
+   * Whether the user has engaged the draft this open session (selected a day or
+   * preset, or applied). Gates the CVA `onTouched` so merely opening and
+   * dismissing — open-then-Esc with no change — does not mark the control
+   * touched. Plain field: it drives no view, only the touched side-effect.
+   */
+  private interacted = false;
+
   constructor() {
     // Light-dismiss fallback for engines without the Popover API (jsdom, older
     // browsers). Native `popover="auto"` already does this where supported; the
@@ -224,6 +304,16 @@ export class DateRangePicker {
       this.onDocumentClick(event),
     );
     inject(DestroyRef).onDestroy(unlisten);
+
+    // Side-effect, not computed state (issue 06; JUSTIFICATION §4): surface every
+    // applied Range to the console (assignment requirement). Each Apply sets a
+    // fresh `appliedLog` object, so re-applying the same dates still logs.
+    effect(() => {
+      const range = this.appliedLog();
+      if (range !== null) {
+        console.log(range);
+      }
+    });
   }
 
   protected toggle(): void {
@@ -251,28 +341,41 @@ export class DateRangePicker {
 
   /**
    * Seed the draft from the committed Range (open-time init in the toggle
-   * handler, not an `effect` — JUSTIFICATION §4). A committed dated range opens
-   * complete and focuses its month; empty (or Lifetime) opens with a clean draft
-   * on today's window.
+   * handler, not an `effect` — JUSTIFICATION §4).
+   *
+   * Three cases:
+   * - **Dated range** → restore it, focus its start month. The preset that
+   *   produced it isn't persisted (§3), so no named preset is active.
+   * - **Lifetime** (committed but open-ended, `start === null`) → restore the
+   *   open-ended draft and re-activate the Lifetime preset, so the footer reads
+   *   "Lifetime", Apply stays enabled, and the sidebar highlights it on reopen.
+   * - **Empty** → a clean draft on today's window.
    */
   private seedDraft(): void {
     const committed = this.committed();
     this.hoveredDate.set(null);
+    this.selectionPhase.set('complete');
     if (committed && committed.start) {
       this.draftStart.set(committed.start);
       this.draftEnd.set(committed.end);
-      this.selectionPhase.set('complete');
+      this.activePresetState.set(null);
       this.viewMonth.set(committed.start.toPlainYearMonth());
+    } else if (committed) {
+      this.draftStart.set(null);
+      this.draftEnd.set(committed.end);
+      this.activePresetState.set('lifetime');
+      this.viewMonth.set(committed.end.toPlainYearMonth());
     } else {
       this.draftStart.set(null);
       this.draftEnd.set(null);
-      this.selectionPhase.set('complete');
+      this.activePresetState.set(null);
       this.viewMonth.set(this.today.toPlainYearMonth());
     }
   }
 
   /** A day click drives the camp-B reducer (fresh / extend / swap) and flips to Custom. */
   protected onDaySelect(clicked: Temporal.PlainDate): void {
+    this.interacted = true;
     const next = nextSelection(
       {
         draftStart: this.draftStart(),
@@ -302,6 +405,7 @@ export class DateRangePicker {
     if (range === null) {
       return;
     }
+    this.interacted = true;
     this.draftStart.set(range.start);
     this.draftEnd.set(range.end);
     this.selectionPhase.set('complete');
@@ -320,6 +424,35 @@ export class DateRangePicker {
     this.viewMonth.update((month) => month.add({ months: delta }));
   }
 
+  /**
+   * Promote the draft to the Committed range: commit it locally (so the Trigger
+   * updates even uncontrolled), notify any form (CVA), emit `applied`, queue the
+   * `console.log` side-effect, and close. Guarded by `canApply` — a no-op when no
+   * Range exists.
+   */
+  protected apply(): void {
+    const range = this.draftRange();
+    if (range === null) {
+      return;
+    }
+    this.interacted = true;
+    const committed: DateRange = { start: range.start, end: range.end };
+    this.committed.set(committed);
+    this.onChange(committed);
+    this.applied.emit(committed);
+    this.appliedLog.set(committed);
+    this.close();
+  }
+
+  /**
+   * Discard the draft and close. The committed Range is untouched, so the Trigger
+   * keeps its previous value and reopening re-seeds the draft from it (`seedDraft`)
+   * — the revert. Esc and click-outside route here, so dismissal is uniform.
+   */
+  protected cancel(): void {
+    this.close();
+  }
+
   private close(): void {
     if (!this.isOpen()) {
       return;
@@ -330,6 +463,12 @@ export class DateRangePicker {
       panel.hidePopover?.();
     } catch {
       /* already closed / unsupported */
+    }
+    // Mark touched only on a real dismiss-after-interaction (blur semantics):
+    // opening and immediately dismissing leaves the control untouched.
+    if (this.interacted) {
+      this.onTouched();
+      this.interacted = false;
     }
     this.triggerRef().nativeElement.focus();
   }
@@ -349,7 +488,8 @@ export class DateRangePicker {
   protected onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape' && this.isOpen()) {
       event.preventDefault();
-      this.close();
+      // Esc behaves like Cancel (PRD user story 38).
+      this.cancel();
     }
   }
 
@@ -362,7 +502,34 @@ export class DateRangePicker {
     }
     const target = event.target as Node | null;
     if (target && !this.hostRef.nativeElement.contains(target)) {
-      this.close();
+      // Click-outside behaves like Cancel (PRD user story 37).
+      this.cancel();
     }
+  }
+
+  // --- ControlValueAccessor (JUSTIFICATION §7) ------------------------------
+  // Form integration drives the same locally-writable `committed` signal as the
+  // `value` input, so `formControlName` / `[(ngModel)]` and plain `value` are
+  // interchangeable. `setDisabledState` is omitted — the design has no disabled
+  // Trigger; with more time it would toggle a disabled state on the Trigger.
+
+  private onChange: (value: DateRange | null) => void = () => {
+    /* no-op until a form registers via registerOnChange */
+  };
+  private onTouched: () => void = () => {
+    /* no-op until a form registers via registerOnTouched */
+  };
+
+  /** Form → component: a programmatic value seeds the committed Range. */
+  writeValue(value: DateRange | null): void {
+    this.committed.set(value);
+  }
+
+  registerOnChange(fn: (value: DateRange | null) => void): void {
+    this.onChange = fn;
+  }
+
+  registerOnTouched(fn: () => void): void {
+    this.onTouched = fn;
   }
 }

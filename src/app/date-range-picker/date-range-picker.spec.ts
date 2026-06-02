@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { vi } from 'vitest';
 import { DateRangePicker, TODAY } from './date-range-picker';
 import type { DateRange } from './date-range.types';
 
@@ -458,5 +459,288 @@ describe('DateRangePicker — presets sidebar (slice 05)', () => {
     expect(dayCell(f, '2024-02-10')!.classList.contains('drp-day--start')).toBe(true);
     expect(dayCell(f, '2024-02-20')!.classList.contains('drp-day--end')).toBe(true);
     expect(radioByLabel(f, 'Custom range').getAttribute('aria-checked')).toBe('true');
+  });
+});
+
+/**
+ * Seam 2 (slice 06) — the Footer and the full commit/cancel lifecycle, driven
+ * through the root only (the issue forbids unit-testing `Footer` in isolation).
+ * `today` is pinned via `TODAY` so the draft, summary and day count are
+ * deterministic. The Apply `console.log` is the assignment requirement; the
+ * emitted value, the committed Trigger label and the open/closed state are the
+ * queryable contract.
+ */
+describe('DateRangePicker — footer + apply/cancel (slice 06)', () => {
+  // 2024-02-15 is a Thursday; every day used below addresses exactly one cell.
+  const FIXED_TODAY = '2024-02-15';
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
+  });
+
+  function setupCal(
+    opts: { today?: string; value?: DateRange | null } = {},
+  ): ComponentFixture<DateRangePicker> {
+    TestBed.configureTestingModule({
+      providers: [{ provide: TODAY, useValue: d(opts.today ?? FIXED_TODAY) }],
+    });
+    const fixture = TestBed.createComponent(DateRangePicker);
+    fixture.componentRef.setInput('label', 'Date range');
+    if ('value' in opts) {
+      fixture.componentRef.setInput('value', opts.value);
+    }
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  const openCal = (f: ComponentFixture<DateRangePicker>) => {
+    trigger(f).click();
+    f.detectChanges();
+  };
+  const dayCell = (f: ComponentFixture<DateRangePicker>, iso: string) =>
+    panel(f).querySelector(`.drp-day[data-date="${iso}"]`) as HTMLButtonElement | null;
+  const clickDay = (f: ComponentFixture<DateRangePicker>, iso: string) => {
+    dayCell(f, iso)!.click();
+    f.detectChanges();
+  };
+  const clickPreset = (f: ComponentFixture<DateRangePicker>, label: string) => {
+    const radio = Array.from(panel(f).querySelectorAll('[role="radio"]')).find((r) =>
+      r.textContent?.includes(label),
+    ) as HTMLElement;
+    radio.click();
+    f.detectChanges();
+  };
+  const footer = (f: ComponentFixture<DateRangePicker>) =>
+    panel(f).querySelector('.drp-footer') as HTMLElement;
+  const applyBtn = (f: ComponentFixture<DateRangePicker>) =>
+    panel(f).querySelector('.drp-footer__apply') as HTMLButtonElement;
+  const cancelBtn = (f: ComponentFixture<DateRangePicker>) =>
+    panel(f).querySelector('.drp-footer__cancel') as HTMLButtonElement;
+  const summaryEl = (f: ComponentFixture<DateRangePicker>) =>
+    panel(f).querySelector('.drp-footer__range') as HTMLElement;
+  const metaEl = (f: ComponentFixture<DateRangePicker>) =>
+    panel(f).querySelector('.drp-footer__meta') as HTMLElement;
+
+  describe('Apply commit cycle', () => {
+    it('emits {start,end}, logs to console, commits to the Trigger, and closes', () => {
+      const f = setupCal({ value: null });
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      const emitted: DateRange[] = [];
+      f.componentInstance.applied.subscribe((r) => emitted.push(r));
+
+      openCal(f);
+      clickDay(f, '2024-02-10');
+      clickDay(f, '2024-02-20');
+      applyBtn(f).click();
+      f.detectChanges();
+
+      expect(emitted).toHaveLength(1);
+      expect(emitted[0].start?.toString()).toBe('2024-02-10');
+      expect(emitted[0].end.toString()).toBe('2024-02-20');
+      expect(logSpy).toHaveBeenCalledTimes(1);
+      expect(logSpy).toHaveBeenCalledWith(emitted[0]);
+      expect(trigger(f).textContent?.trim()).toBe('10 Feb 2024 - 20 Feb 2024');
+      expect(trigger(f).getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('uncontrolled: updates the Trigger even when value is never echoed back', () => {
+      const f = setupCal({ value: null });
+      vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      openCal(f);
+      clickDay(f, '2024-02-10');
+      applyBtn(f).click();
+      f.detectChanges();
+
+      // Single-day range (camp B): Apply is enabled after the first click.
+      expect(trigger(f).textContent?.trim()).toBe('10 Feb 2024 - 10 Feb 2024');
+    });
+
+    it('controlled: a consumer echoing the applied range keeps the Trigger in sync', () => {
+      const f = setupCal({ value: null });
+      vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      f.componentInstance.applied.subscribe((r) => f.componentRef.setInput('value', r));
+
+      openCal(f);
+      clickDay(f, '2024-02-10');
+      clickDay(f, '2024-02-20');
+      applyBtn(f).click();
+      f.detectChanges();
+
+      expect(trigger(f).textContent?.trim()).toBe('10 Feb 2024 - 20 Feb 2024');
+    });
+
+    it('round-trips a committed Lifetime range: reopening restores it', () => {
+      const f = setupCal({ value: null });
+      vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+      openCal(f);
+      clickPreset(f, 'Lifetime');
+      applyBtn(f).click();
+      f.detectChanges();
+
+      // Reopen — the open-ended draft must come back, not an empty picker.
+      openCal(f);
+      expect(summaryEl(f).textContent?.trim()).toBe('Lifetime');
+      expect(applyBtn(f).disabled).toBe(false);
+      const lifetime = Array.from(panel(f).querySelectorAll('[role="radio"]')).find((r) =>
+        r.textContent?.includes('Lifetime'),
+      );
+      expect(lifetime?.getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('commits a Lifetime selection (open-ended) to the Trigger', () => {
+      const f = setupCal({ value: null });
+      vi.spyOn(console, 'log').mockImplementation(() => undefined);
+      const emitted: DateRange[] = [];
+      f.componentInstance.applied.subscribe((r) => emitted.push(r));
+
+      openCal(f);
+      clickPreset(f, 'Lifetime');
+      applyBtn(f).click();
+      f.detectChanges();
+
+      expect(emitted[0].start).toBeNull();
+      expect(trigger(f).textContent?.trim()).toBe('Lifetime');
+    });
+  });
+
+  describe('Cancel / dismiss reverts to the committed range', () => {
+    const committed = { start: '2024-02-05', end: '2024-02-08' };
+    const compact = '5 Feb 2024 - 8 Feb 2024';
+
+    const seeded = (): { value: DateRange } => ({
+      value: { start: d(committed.start), end: d(committed.end) },
+    });
+
+    it('Cancel reverts the draft and closes', () => {
+      const f = setupCal(seeded());
+      openCal(f);
+      clickDay(f, '2024-02-10');
+      clickDay(f, '2024-02-20');
+
+      cancelBtn(f).click();
+      f.detectChanges();
+
+      expect(trigger(f).textContent?.trim()).toBe(compact);
+      expect(trigger(f).getAttribute('aria-expanded')).toBe('false');
+
+      // Reopening shows the committed range, not the discarded draft.
+      openCal(f);
+      expect(dayCell(f, '2024-02-05')!.classList.contains('drp-day--start')).toBe(true);
+      expect(dayCell(f, '2024-02-08')!.classList.contains('drp-day--end')).toBe(true);
+      expect(dayCell(f, '2024-02-20')!.classList.contains('drp-day--end')).toBe(false);
+    });
+
+    it('Esc behaves identically to Cancel', () => {
+      const f = setupCal(seeded());
+      openCal(f);
+      clickDay(f, '2024-02-20');
+
+      pressEscape(panel(f));
+      f.detectChanges();
+
+      expect(trigger(f).textContent?.trim()).toBe(compact);
+      expect(trigger(f).getAttribute('aria-expanded')).toBe('false');
+      openCal(f);
+      expect(dayCell(f, '2024-02-05')!.classList.contains('drp-day--start')).toBe(true);
+    });
+
+    it('click-outside behaves identically to Cancel', () => {
+      const f = setupCal(seeded());
+      openCal(f);
+      clickDay(f, '2024-02-20');
+
+      document.body.click();
+      f.detectChanges();
+
+      expect(trigger(f).textContent?.trim()).toBe(compact);
+      expect(trigger(f).getAttribute('aria-expanded')).toBe('false');
+    });
+  });
+
+  describe('canApply', () => {
+    it('disables Apply until a range exists', () => {
+      const f = setupCal({ value: null });
+      openCal(f);
+
+      expect(applyBtn(f).disabled).toBe(true);
+
+      clickDay(f, '2024-02-10');
+      expect(applyBtn(f).disabled).toBe(false);
+    });
+
+    it('enables Apply when Lifetime is active (open-ended)', () => {
+      const f = setupCal({ value: null });
+      openCal(f);
+
+      clickPreset(f, 'Lifetime');
+      expect(applyBtn(f).disabled).toBe(false);
+    });
+  });
+
+  describe('Footer summary', () => {
+    it('shows the verbose summary, inclusive day count, and Intl timezone', () => {
+      const f = setupCal({ value: null });
+      openCal(f);
+      clickDay(f, '2024-02-10');
+      clickDay(f, '2024-02-20');
+
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const summary = summaryEl(f).textContent ?? '';
+      expect(summary).toContain('Saturday');
+      expect(summary).toContain('10 February 2024');
+      expect(summary).toContain('Tuesday');
+      expect(summary).toContain('20 February 2024');
+      expect(summary).toContain('–');
+
+      // 10 Feb → 20 Feb inclusive = 11 days.
+      expect(metaEl(f).textContent).toContain('11 days');
+      expect(metaEl(f).textContent).toContain(tz);
+    });
+
+    it('reads just "Lifetime" with no day count when Lifetime is active', () => {
+      const f = setupCal({ value: null });
+      openCal(f);
+
+      clickPreset(f, 'Lifetime');
+
+      expect(summaryEl(f).textContent?.trim()).toBe('Lifetime');
+      expect(footer(f).textContent).not.toMatch(/day/i);
+    });
+
+    it('shows no meta line when nothing is selected', () => {
+      const f = setupCal({ value: null });
+      openCal(f);
+
+      // An empty draft has no Range to qualify — no bare timezone under a blank summary.
+      expect(summaryEl(f).textContent?.trim()).toBe('');
+      expect(metaEl(f).textContent?.trim()).toBe('');
+    });
+  });
+
+  describe('CVA touched semantics', () => {
+    it('marks the control touched only after a real interaction', () => {
+      const f = setupCal({ value: null });
+      let touched = 0;
+      f.componentInstance.registerOnTouched(() => {
+        touched += 1;
+      });
+
+      // Open then dismiss with no change — not touched.
+      openCal(f);
+      pressEscape(panel(f));
+      f.detectChanges();
+      expect(touched).toBe(0);
+
+      // Open, select a day, dismiss — now touched.
+      openCal(f);
+      clickDay(f, '2024-02-10');
+      pressEscape(panel(f));
+      f.detectChanges();
+      expect(touched).toBe(1);
+    });
   });
 });
