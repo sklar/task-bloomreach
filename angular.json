@@ -7,7 +7,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "bloomreach-ui-task": {
+    "task-bloomreach": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -55,10 +55,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "bloomreach-ui-task:build:production"
+              "buildTarget": "task-bloomreach:build:production"
             },
             "development": {
-              "buildTarget": "bloomreach-ui-task:build:development"
+              "buildTarget": "task-bloomreach:build:development"
             }
           },
           "defaultConfiguration": "development"

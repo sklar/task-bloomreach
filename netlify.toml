@@ -1,6 +1,6 @@
 [build]
   command = "pnpm build"
-  publish = "dist/bloomreach-ui-task/browser"
+  publish = "dist/task-bloomreach/browser"
 
 [build.environment]
   NODE_VERSION = "22.22.2"
